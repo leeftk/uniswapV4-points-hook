@@ -8,9 +8,13 @@ A user can them claim their rewards in the contract by burning their points toke
 
 The hook is very simple and straight forward
 
-To run in just clone this repo.
+To run clone this repo.
 
 - Run `forge install`
 
 - Run `forge test`
+
+## Security Considerations
+
+This is NOT production grade or audited. Use at your own risk. Also this does not consider the gas costs and assumes that users do not care about the price of the transaction.
 
