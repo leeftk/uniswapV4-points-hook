@@ -141,4 +141,83 @@ function test_addLiquidityAndSwap() public {
         2 * 10 ** 14
     );
 }
+function test_addLiquidityAndSwapWithReferral() public {
+    bytes memory hookData = hook.getHookData(address(1), address(this));
+
+    uint256 pointsBalanceOriginal = hook.balanceOf(address(this));
+    uint256 referrerPointsBalanceOriginal = hook.balanceOf(address(1));
+
+    // amount0Delta = ~0.003 ETH
+    // How we landed on 0.003 ether here is based on computing value of x and y given
+    // total value of delta L (liquidity delta) = 1 ether
+    // This is done by computing x and y from the equation shown in Ticks and Q64.96 Numbers lesson
+    // View the full code for this lesson on GitHub which has additional comments
+    // showing the exact computation and a Python script to do that calculation for you
+
+    uint160 sqrtPriceAtTickLower = TickMath.getSqrtPriceAtTick(-60);
+    uint160 sqrtPriceAtTickUpper = TickMath.getSqrtPriceAtTick(60);
+
+    (uint256 amount0Delta, uint256 amount1Delta) = LiquidityAmounts
+        .getAmountsForLiquidity(
+            SQRT_PRICE_1_1,
+            sqrtPriceAtTickLower,
+            sqrtPriceAtTickUpper,
+            1 ether
+        );
+
+    modifyLiquidityRouter.modifyLiquidity{value: amount0Delta + 1}(
+        key,
+        IPoolManager.ModifyLiquidityParams({
+            tickLower: -60,
+            tickUpper: 60,
+            liquidityDelta: 1 ether,
+            salt: bytes32(0)
+        }),
+        hookData
+    );
+
+    uint256 pointsBalanceAfterAddLiquidity = hook.balanceOf(address(this));
+    uint256 referrerPointsBalanceAfterAddLiquidity = hook.balanceOf(
+        address(1)
+    );
+
+    assertApproxEqAbs(
+        pointsBalanceAfterAddLiquidity - pointsBalanceOriginal,
+        2995354955910434,
+        0.00001 ether
+    );
+    assertApproxEqAbs(
+        referrerPointsBalanceAfterAddLiquidity -
+            referrerPointsBalanceOriginal -
+            hook.POINTS_FOR_REFERRAL(),
+        299535495591043,
+        0.000001 ether
+    );
+
+    // Now we swap
+    // We will swap 0.001 ether for tokens
+    // We should get 20% of 0.001 * 10**18 points
+    // = 2 * 10**14
+    // Referrer should get 10% of that - so 2 * 10**13
+    swapRouter.swap{value: 0.001 ether}(
+        key,
+        IPoolManager.SwapParams({
+            zeroForOne: true,
+            amountSpecified: -0.001 ether,
+            sqrtPriceLimitX96: TickMath.MIN_SQRT_PRICE + 1
+        }),
+        PoolSwapTest.TestSettings({
+            takeClaims: false,
+            settleUsingBurn: false
+        }),
+        hookData
+    );
+    uint256 pointsBalanceAfterSwap = hook.balanceOf(address(this));
+    uint256 referrerPointsBalanceAfterSwap = hook.balanceOf(address(1));
+
+    console.log(
+        "Points balance after swap: ",
+        pointsBalanceAfterSwap - pointsBalanceAfterAddLiquidity
+    );
+}
 }
